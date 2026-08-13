@@ -1,3 +1,4 @@
+from .autostart_adapter import AutostartAdapter
 from .component_state_monitor import ComponentStateMonitor
 from .controller_manager_service_caller import ControllerManagerServiceCaller
 from .lifecycle_node_service_caller import LifecycleNodeServiceCaller
@@ -10,4 +11,5 @@ __all__ = [
     "LifecycleNodeServiceCaller",
     "RosSetGoalServer",
     "RosNodeParameters",
+    "AutostartAdapter",
 ]
