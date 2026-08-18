@@ -7,7 +7,7 @@ from rclpy.node import Node
 
 from foreman.engine import ForemanEngine
 from foreman.types import ForemanSnapshot
-from foreman_msgs.action import SetGoal
+from foreman_msgs.action import SetProfile
 from foreman_msgs.msg import ComponentState
 from foreman_msgs.msg import ForemanErrorState
 
@@ -39,8 +39,8 @@ def _to_error_msg(snapshot: ForemanSnapshot) -> ForemanErrorState:
     return msg
 
 
-class RosSetGoalActionServer:
-    """ROS 2 action interface to set the Foreman goal."""
+class RosSetProfileActionServer:
+    """ROS 2 action interface to set the Foreman profile."""
 
     def __init__(
         self, node: Node, engine: ForemanEngine, poll_period: float = 0.05, *, execution_lock
@@ -53,18 +53,18 @@ class RosSetGoalActionServer:
 
         self._action_server = ActionServer(
             node,
-            SetGoal,
-            "~/set_goal",
+            SetProfile,
+            "~/set_profile",
             execute_callback=self._execute,
             goal_callback=self._on_goal_request,
             cancel_callback=self._on_cancel_request,
             callback_group=node.callback_group_subscriber,
         )
 
-        self._logger.info("Action set_goal is ready.")
+        self._logger.info("Action set_profile is ready.")
 
     def _on_goal_request(self, goal_request) -> GoalResponse:
-        self._logger.debug(f"Received request for goal '{goal_request.goal}'")
+        self._logger.debug(f"Received request for profile '{goal_request.profile}'")
         return GoalResponse.ACCEPT
 
     def _on_cancel_request(self, goal_handle) -> CancelResponse:
@@ -73,22 +73,22 @@ class RosSetGoalActionServer:
         return CancelResponse.ACCEPT
 
     def request_shutdown(self):
-        """Stop waiting for a goal, so a running goal does not outlive the node."""
+        """Stop waiting for a profile, so a running profile does not outlive the node."""
         self._shutting_down = True
 
     def _execute(self, goal_handle):
-        goal_name = goal_handle.request.goal
-        result = SetGoal.Result()
+        profile_name = goal_handle.request.profile
+        result = SetProfile.Result()
 
         if not self._execution_lock.acquire(blocking=False):
             result.success = False
-            result.message = "Another set_goal request is already active."
+            result.message = "Another set_profile request is already active."
             self._logger.warning(result.message)
             goal_handle.abort()
             return result
 
         try:
-            engine_response = self._engine.request_goal(goal_name)
+            engine_response = self._engine.request_profile(profile_name)
             if not engine_response.success:
                 self._logger.warning(engine_response.message)
                 result.success = False
@@ -98,7 +98,7 @@ class RosSetGoalActionServer:
 
             self._logger.debug(engine_response.message)
 
-            feedback = SetGoal.Feedback()
+            feedback = SetProfile.Feedback()
             while True:
                 if (
                     not goal_handle.is_active
@@ -106,7 +106,7 @@ class RosSetGoalActionServer:
                     or self._shutting_down
                 ):
                     result.success = False
-                    result.message = f"Stopped waiting for goal '{goal_name}'."
+                    result.message = f"Stopped waiting for profile '{profile_name}'."
                     result.error = _to_error_msg(self._engine.get_engine_snapshot())
 
                     if goal_handle.is_cancel_requested:
@@ -121,19 +121,19 @@ class RosSetGoalActionServer:
                     result.success = False
                     result.message = f"[{snapshot.error.category}] {snapshot.error.message}"
                     result.error = error_msg
-                    self._logger.error(f"Goal '{goal_name}' aborted: {result.message}")
+                    self._logger.error(f"Profile '{profile_name}' aborted: {result.message}")
                     goal_handle.abort()
                     return result
 
-                if snapshot.at_goal:
+                if snapshot.at_profile:
                     result.success = True
-                    result.message = f"Goal '{goal_name}' reached."
+                    result.message = f"Profile '{profile_name}' reached."
                     result.error = error_msg
                     self._logger.info(result.message)
                     goal_handle.succeed()
                     return result
 
-                feedback.at_goal = False
+                feedback.at_profile = False
                 feedback.error = error_msg
                 goal_handle.publish_feedback(feedback)
 

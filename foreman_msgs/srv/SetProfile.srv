@@ -1,6 +1,6 @@
 # TODO: add description
 
-string goal
+string profile
 ---
 bool success
 string message

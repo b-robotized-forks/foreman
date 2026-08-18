@@ -21,11 +21,11 @@ set(msg_files
 )
 
 set(srv_files
-  "srv/SetGoal.srv"
+  "srv/SetProfile.srv"
 )
 
 set(action_files
-  "action/SetGoal.action"
+  "action/SetProfile.action"
 )
 
 rosidl_generate_interfaces(${PROJECT_NAME}

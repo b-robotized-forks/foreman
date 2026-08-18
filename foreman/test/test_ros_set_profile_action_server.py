@@ -6,8 +6,8 @@ import rclpy
 from rclpy.action import get_action_names_and_types
 from rclpy.callback_groups import ReentrantCallbackGroup
 
-from foreman.adapters.ros_set_goal_action_server import _to_error_msg
-from foreman.adapters.ros_set_goal_action_server import RosSetGoalActionServer
+from foreman.adapters.ros_set_profile_action_server import _to_error_msg
+from foreman.adapters.ros_set_profile_action_server import RosSetProfileActionServer
 from foreman.types import Component
 from foreman.types import ComponentType
 from foreman.types import ErrorSnapshot
@@ -21,20 +21,20 @@ def _component(name="ctrl_a", state=LifecycleState.INACTIVE):
     return Component(name=name, component_type=ComponentType.CONTROLLER, lifecycle_state=state)
 
 
-def _snapshot(goal="force_ctrl", ready=True, at_goal=False, error=None, components=None):
+def _snapshot(profile="force_ctrl", ready=True, at_profile=False, error=None, components=None):
     """Build a ForemanSnapshot with a no-error default."""
     if error is None:
         error = ErrorSnapshot(
             is_error=False, category=ForemanErrorCategory.NONE.value, message="", components=[]
         )
     return ForemanSnapshot(
-        goal=goal,
+        profile=profile,
         ready=ready,
-        at_goal=at_goal,
+        at_profile=at_profile,
         error=error,
         components=components if components is not None else [],
-        all_goals=[],
-        available_goals=[],
+        all_profiles=[],
+        available_profiles=[],
     )
 
 
@@ -47,10 +47,10 @@ def _error_snapshot(category=ForemanErrorCategory.EXECUTION, message="boom", com
     )
 
 
-def _goal_handle(goal_name="force_ctrl"):
+def _goal_handle(profile_name="force_ctrl"):
     """Fake action goal handle: active, not cancelled, records terminal calls."""
     handle = MagicMock()
-    handle.request.goal = goal_name
+    handle.request.profile = profile_name
     handle.is_active = True
     handle.is_cancel_requested = False
     return handle
@@ -100,7 +100,7 @@ class TestToErrorMsg(unittest.TestCase):
         self.assertEqual(msg.components[0].lifecycle_state, "")
 
 
-class TestRosSetGoalActionServer(unittest.TestCase):
+class TestRosSetProfileActionServer(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         rclpy.init()
@@ -110,7 +110,7 @@ class TestRosSetGoalActionServer(unittest.TestCase):
         rclpy.shutdown()
 
     def setUp(self):
-        self.node = rclpy.create_node("test_set_goal_action")
+        self.node = rclpy.create_node("test_set_profile_action")
         # the adapter reads this; the real node sets it, a bare node doesn't
         self.node.callback_group_subscriber = ReentrantCallbackGroup()
         self.addCleanup(self.node.destroy_node)
@@ -120,22 +120,22 @@ class TestRosSetGoalActionServer(unittest.TestCase):
         # poll_period=0 so the wait loop does not slow the tests down
         if execution_lock is None:
             execution_lock = threading.Lock()
-        return RosSetGoalActionServer(
+        return RosSetProfileActionServer(
             self.node, self.engine, poll_period=0.0, execution_lock=execution_lock
         )
 
     def test_action_is_advertised_in_node_namespace(self):
         self._server()
-        expected = f"/{self.node.get_name()}/set_goal"
+        expected = f"/{self.node.get_name()}/set_profile"
         advertised = dict(get_action_names_and_types(node=self.node))
         self.assertIn(expected, advertised)
-        self.assertEqual(advertised[expected], ["foreman_msgs/action/SetGoal"])
+        self.assertEqual(advertised[expected], ["foreman_msgs/action/SetProfile"])
 
-    def test_shutdown_stops_waiting_for_the_goal(self):
+    def test_shutdown_stops_waiting_for_the_profile(self):
         # is_active stays True on shutdown, so without _shutting_down the wait
         # loop never ends and the process cannot exit.
-        self.engine.request_goal.return_value = ForemanResponse(True, "Goal accepted.")
-        self.engine.get_engine_snapshot.return_value = _snapshot(at_goal=False)
+        self.engine.request_profile.return_value = ForemanResponse(True, "Profile accepted.")
+        self.engine.get_engine_snapshot.return_value = _snapshot(at_profile=False)
         server = self._server()
         server.request_shutdown()
 
@@ -144,9 +144,9 @@ class TestRosSetGoalActionServer(unittest.TestCase):
         self.assertFalse(result.success)
         self.assertIn("Stopped waiting", result.message)
 
-    def test_rejected_goal_aborts_without_waiting(self):
-        self.engine.request_goal.return_value = ForemanResponse(
-            False, "Goal 'nope' not found in configuration."
+    def test_rejected_profile_aborts_without_waiting(self):
+        self.engine.request_profile.return_value = ForemanResponse(
+            False, "Profile 'nope' not found in configuration."
         )
         self.engine.get_engine_snapshot.return_value = _snapshot()
         handle = _goal_handle("nope")
@@ -158,9 +158,9 @@ class TestRosSetGoalActionServer(unittest.TestCase):
         self.assertFalse(result.success)
         self.assertIn("not found", result.message)
 
-    def test_rejected_goal_does_not_report_a_leftover_engine_error(self):
-        self.engine.request_goal.return_value = ForemanResponse(
-            False, "Goal 'nope' not found in configuration."
+    def test_rejected_profile_does_not_report_a_leftover_engine_error(self):
+        self.engine.request_profile.return_value = ForemanResponse(
+            False, "Profile 'nope' not found in configuration."
         )
         self.engine.get_engine_snapshot.return_value = _snapshot(
             error=_error_snapshot(message="leftover failure")
@@ -173,7 +173,7 @@ class TestRosSetGoalActionServer(unittest.TestCase):
         self.assertFalse(result.error.is_error)
         self.assertEqual(result.error.message, "")
 
-    def test_busy_set_goal_execution_aborts_without_requesting_goal(self):
+    def test_busy_set_profile_execution_aborts_without_requesting_profile(self):
         self.engine.get_engine_snapshot.return_value = _snapshot()
         execution_lock = threading.Lock()
         execution_lock.acquire()
@@ -182,12 +182,12 @@ class TestRosSetGoalActionServer(unittest.TestCase):
         result = self._server(execution_lock=execution_lock)._execute(handle)
 
         handle.abort.assert_called_once()
-        self.engine.request_goal.assert_not_called()
+        self.engine.request_profile.assert_not_called()
         self.assertFalse(result.success)
         self.assertIn("already active", result.message)
         execution_lock.release()
 
-    def test_busy_set_goal_execution_does_not_report_an_engine_error(self):
+    def test_busy_set_profile_execution_does_not_report_an_engine_error(self):
         self.engine.get_engine_snapshot.return_value = _snapshot(
             error=_error_snapshot(message="unrelated failure")
         )
@@ -202,13 +202,13 @@ class TestRosSetGoalActionServer(unittest.TestCase):
         self.assertEqual(result.error.message, "")
         execution_lock.release()
 
-    def test_succeeds_only_once_engine_reports_at_goal(self):
-        self.engine.request_goal.return_value = ForemanResponse(True, "Goal accepted.")
+    def test_succeeds_only_once_engine_reports_at_profile(self):
+        self.engine.request_profile.return_value = ForemanResponse(True, "Profile accepted.")
         # two polls in transition, then arrived
         self.engine.get_engine_snapshot.side_effect = [
-            _snapshot(at_goal=False),
-            _snapshot(at_goal=False),
-            _snapshot(at_goal=True),
+            _snapshot(at_profile=False),
+            _snapshot(at_profile=False),
+            _snapshot(at_profile=True),
         ]
         handle = _goal_handle()
 
@@ -220,9 +220,9 @@ class TestRosSetGoalActionServer(unittest.TestCase):
         # feedback published for each poll that was still in transition
         self.assertEqual(handle.publish_feedback.call_count, 2)
 
-    def test_successful_goal_releases_execution_lock(self):
-        self.engine.request_goal.return_value = ForemanResponse(True, "Goal accepted.")
-        self.engine.get_engine_snapshot.return_value = _snapshot(at_goal=True)
+    def test_successful_profile_releases_execution_lock(self):
+        self.engine.request_profile.return_value = ForemanResponse(True, "Profile accepted.")
+        self.engine.get_engine_snapshot.return_value = _snapshot(at_profile=True)
         execution_lock = threading.Lock()
         handle = _goal_handle()
 
@@ -233,23 +233,23 @@ class TestRosSetGoalActionServer(unittest.TestCase):
         execution_lock.release()
 
     def test_feedback_carries_current_error_state(self):
-        self.engine.request_goal.return_value = ForemanResponse(True, "Goal accepted.")
+        self.engine.request_profile.return_value = ForemanResponse(True, "Profile accepted.")
         self.engine.get_engine_snapshot.side_effect = [
-            _snapshot(at_goal=False),
-            _snapshot(at_goal=True),
+            _snapshot(at_profile=False),
+            _snapshot(at_profile=True),
         ]
         handle = _goal_handle()
 
         self._server()._execute(handle)
 
         feedback = handle.publish_feedback.call_args[0][0]
-        self.assertFalse(feedback.at_goal)
+        self.assertFalse(feedback.at_profile)
         self.assertFalse(feedback.error.is_error)
 
     def test_engine_error_aborts_and_reports_it(self):
-        self.engine.request_goal.return_value = ForemanResponse(True, "Goal accepted.")
+        self.engine.request_profile.return_value = ForemanResponse(True, "Profile accepted.")
         self.engine.get_engine_snapshot.side_effect = [
-            _snapshot(at_goal=False),
+            _snapshot(at_profile=False),
             _snapshot(
                 error=_error_snapshot(message="Service rejected the transition."),
                 components=[_component("ctrl_a", LifecycleState.INACTIVE)],
@@ -269,8 +269,8 @@ class TestRosSetGoalActionServer(unittest.TestCase):
         self.assertEqual(result.error.components[0].lifecycle_state, "INACTIVE")
 
     def test_cancel_stops_waiting(self):
-        self.engine.request_goal.return_value = ForemanResponse(True, "Goal accepted.")
-        self.engine.get_engine_snapshot.return_value = _snapshot(at_goal=False)
+        self.engine.request_profile.return_value = ForemanResponse(True, "Profile accepted.")
+        self.engine.get_engine_snapshot.return_value = _snapshot(at_profile=False)
         handle = _goal_handle()
         handle.is_cancel_requested = True
 
@@ -281,9 +281,9 @@ class TestRosSetGoalActionServer(unittest.TestCase):
         handle.abort.assert_not_called()
         self.assertFalse(result.success)
 
-    def test_inactive_goal_returns_without_terminal_call(self):
-        self.engine.request_goal.return_value = ForemanResponse(True, "Goal accepted.")
-        self.engine.get_engine_snapshot.return_value = _snapshot(at_goal=False)
+    def test_inactive_profile_returns_without_terminal_call(self):
+        self.engine.request_profile.return_value = ForemanResponse(True, "Profile accepted.")
+        self.engine.get_engine_snapshot.return_value = _snapshot(at_profile=False)
         handle = _goal_handle()
         handle.is_active = False
 
@@ -295,11 +295,11 @@ class TestRosSetGoalActionServer(unittest.TestCase):
         self.assertFalse(result.success)
         self.assertIn("Stopped waiting", result.message)
 
-    def test_already_at_goal_succeeds_without_feedback(self):
-        self.engine.request_goal.return_value = ForemanResponse(
-            True, "Already at goal 'force_ctrl'."
+    def test_already_at_profile_succeeds_without_feedback(self):
+        self.engine.request_profile.return_value = ForemanResponse(
+            True, "Already at profile 'force_ctrl'."
         )
-        self.engine.get_engine_snapshot.return_value = _snapshot(at_goal=True)
+        self.engine.get_engine_snapshot.return_value = _snapshot(at_profile=True)
         handle = _goal_handle()
 
         result = self._server()._execute(handle)

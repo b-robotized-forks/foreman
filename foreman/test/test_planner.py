@@ -7,7 +7,7 @@ from foreman.types import (
     ControllerDependencyRule,
     HardwareRequirement,
     LifecycleState,
-    SystemGoal,
+    SystemProfile,
     SystemState,
     SystemTransitionCommand,
 )
@@ -68,30 +68,30 @@ def test_scenario_1_standard_bring_up(basic_planner):
             ),
         }
     )
-    goal = SystemGoal(
+    profile = SystemProfile(
         "active",
-        hardware_goals=[Component("franka_hw", ComponentType.HARDWARE, LifecycleState.ACTIVE)],
-        controller_goals=[
+        hardware_targets=[Component("franka_hw", ComponentType.HARDWARE, LifecycleState.ACTIVE)],
+        controller_targets=[
             Component("franka_jtc", ComponentType.CONTROLLER, LifecycleState.ACTIVE)
         ],
     )
 
-    cmd = basic_planner.get_next_transition(state, goal)
+    cmd = basic_planner.get_next_transition(state, profile)
     assert cmd.component.name == "franka_hw"
     assert cmd.goal_state == LifecycleState.INACTIVE
     apply_command(state, cmd)
 
-    cmd = basic_planner.get_next_transition(state, goal)
+    cmd = basic_planner.get_next_transition(state, profile)
     assert cmd.component.name == "franka_hw"
     assert cmd.goal_state == LifecycleState.ACTIVE
     apply_command(state, cmd)
 
-    cmd = basic_planner.get_next_transition(state, goal)
+    cmd = basic_planner.get_next_transition(state, profile)
     assert cmd.component.name == "franka_jtc"
     assert cmd.goal_state == LifecycleState.INACTIVE
     apply_command(state, cmd)
 
-    cmd = basic_planner.get_next_transition(state, goal)
+    cmd = basic_planner.get_next_transition(state, profile)
     assert cmd.component.name == "franka_jtc"
     assert cmd.goal_state == LifecycleState.ACTIVE
 
@@ -103,32 +103,32 @@ def test_scenario_2_standard_teardown(basic_planner):
             "franka_jtc": Component("franka_jtc", ComponentType.CONTROLLER, LifecycleState.ACTIVE),
         }
     )
-    goal = SystemGoal(
+    profile = SystemProfile(
         "unc",
-        hardware_goals=[
+        hardware_targets=[
             Component("franka_hw", ComponentType.HARDWARE, LifecycleState.UNCONFIGURED)
         ],
-        controller_goals=[
+        controller_targets=[
             Component("franka_jtc", ComponentType.CONTROLLER, LifecycleState.UNCONFIGURED)
         ],
     )
 
-    cmd = basic_planner.get_next_transition(state, goal)
+    cmd = basic_planner.get_next_transition(state, profile)
     assert cmd.component.name == "franka_jtc"
     assert cmd.goal_state == LifecycleState.INACTIVE
     apply_command(state, cmd)
 
-    cmd = basic_planner.get_next_transition(state, goal)
+    cmd = basic_planner.get_next_transition(state, profile)
     assert cmd.component.name == "franka_hw"
     assert cmd.goal_state == LifecycleState.INACTIVE
     apply_command(state, cmd)
 
-    cmd = basic_planner.get_next_transition(state, goal)
+    cmd = basic_planner.get_next_transition(state, profile)
     assert cmd.component.name == "franka_hw"
     assert cmd.goal_state == LifecycleState.UNCONFIGURED
     apply_command(state, cmd)
 
-    cmd = basic_planner.get_next_transition(state, goal)
+    cmd = basic_planner.get_next_transition(state, profile)
     assert cmd.component.name == "franka_jtc"
     assert cmd.goal_state == LifecycleState.UNCONFIGURED
 
@@ -144,18 +144,18 @@ def test_scenario_3_broadcaster_bringup(broadcaster_planner):
             ),
         }
     )
-    goal = SystemGoal(
+    profile = SystemProfile(
         "active",
-        hardware_goals=[Component("franka_hw", ComponentType.HARDWARE, LifecycleState.ACTIVE)],
-        controller_goals=[
+        hardware_targets=[Component("franka_hw", ComponentType.HARDWARE, LifecycleState.ACTIVE)],
+        controller_targets=[
             Component("joint_state_broadcaster", ComponentType.CONTROLLER, LifecycleState.ACTIVE)
         ],
     )
 
-    cmd = broadcaster_planner.get_next_transition(state, goal)
+    cmd = broadcaster_planner.get_next_transition(state, profile)
     apply_command(state, cmd)
 
-    cmd = broadcaster_planner.get_next_transition(state, goal)
+    cmd = broadcaster_planner.get_next_transition(state, profile)
     assert cmd.component.name == "franka_hw"
     assert cmd.goal_state == LifecycleState.ACTIVE
     apply_command(state, cmd)
@@ -168,20 +168,20 @@ def test_scenario_4_partial_pause(basic_planner):
             "franka_jtc": Component("franka_jtc", ComponentType.CONTROLLER, LifecycleState.ACTIVE),
         }
     )
-    goal = SystemGoal(
+    profile = SystemProfile(
         "idle",
-        hardware_goals=[Component("franka_hw", ComponentType.HARDWARE, LifecycleState.INACTIVE)],
-        controller_goals=[
+        hardware_targets=[Component("franka_hw", ComponentType.HARDWARE, LifecycleState.INACTIVE)],
+        controller_targets=[
             Component("franka_jtc", ComponentType.CONTROLLER, LifecycleState.INACTIVE)
         ],
     )
 
-    cmd = basic_planner.get_next_transition(state, goal)
+    cmd = basic_planner.get_next_transition(state, profile)
     assert cmd.component.name == "franka_jtc"
     assert cmd.goal_state == LifecycleState.INACTIVE
     apply_command(state, cmd)
 
-    cmd = basic_planner.get_next_transition(state, goal)
+    cmd = basic_planner.get_next_transition(state, profile)
     assert cmd.component.name == "franka_hw"
     assert cmd.goal_state == LifecycleState.INACTIVE
 
@@ -194,10 +194,10 @@ def test_scenario_5_controller_swap(basic_planner):
             "ctrl_B": Component("ctrl_B", ComponentType.CONTROLLER, LifecycleState.INACTIVE),
         }
     )
-    goal = SystemGoal(
+    profile = SystemProfile(
         "swap",
-        hardware_goals=[Component("franka_hw", ComponentType.HARDWARE, LifecycleState.ACTIVE)],
-        controller_goals=[
+        hardware_targets=[Component("franka_hw", ComponentType.HARDWARE, LifecycleState.ACTIVE)],
+        controller_targets=[
             Component("ctrl_A", ComponentType.CONTROLLER, LifecycleState.INACTIVE),
             Component("ctrl_B", ComponentType.CONTROLLER, LifecycleState.ACTIVE),
         ],
@@ -210,12 +210,12 @@ def test_scenario_5_controller_swap(basic_planner):
         "ctrl_B", [HardwareRequirement("franka_hw", LifecycleState.ACTIVE)]
     )
 
-    cmd = basic_planner.get_next_transition(state, goal)
+    cmd = basic_planner.get_next_transition(state, profile)
     assert cmd.component.name == "ctrl_A"
     assert cmd.goal_state == LifecycleState.INACTIVE
     apply_command(state, cmd)
 
-    cmd = basic_planner.get_next_transition(state, goal)
+    cmd = basic_planner.get_next_transition(state, profile)
     assert cmd.component.name == "ctrl_B"
     assert cmd.goal_state == LifecycleState.ACTIVE
 
@@ -229,15 +229,15 @@ def test_scenario_6_hardware_failure(basic_planner):
             ),
         }
     )
-    goal = SystemGoal(
+    profile = SystemProfile(
         "active",
-        hardware_goals=[Component("franka_hw", ComponentType.HARDWARE, LifecycleState.ACTIVE)],
-        controller_goals=[
+        hardware_targets=[Component("franka_hw", ComponentType.HARDWARE, LifecycleState.ACTIVE)],
+        controller_targets=[
             Component("franka_jtc", ComponentType.CONTROLLER, LifecycleState.ACTIVE)
         ],
     )
 
-    cmd = basic_planner.get_next_transition(state, goal)
+    cmd = basic_planner.get_next_transition(state, profile)
     # Command applied, but failed. We re-issue the command.
     assert cmd.component.name == "franka_hw"
     assert cmd.goal_state == LifecycleState.ACTIVE
@@ -250,21 +250,21 @@ def test_scenario_7_controller_teardown_failure(basic_planner):
             "franka_jtc": Component("franka_jtc", ComponentType.CONTROLLER, LifecycleState.ACTIVE),
         }
     )
-    goal = SystemGoal(
+    profile = SystemProfile(
         "unc",
-        hardware_goals=[
+        hardware_targets=[
             Component("franka_hw", ComponentType.HARDWARE, LifecycleState.UNCONFIGURED)
         ],
-        controller_goals=[
+        controller_targets=[
             Component("franka_jtc", ComponentType.CONTROLLER, LifecycleState.UNCONFIGURED)
         ],
     )
 
-    cmd = basic_planner.get_next_transition(state, goal)
+    cmd = basic_planner.get_next_transition(state, profile)
     assert cmd.component.name == "franka_jtc"
 
     # Command applied, but failed. We re-issue the command.
-    cmd_retry = basic_planner.get_next_transition(state, goal)
+    cmd_retry = basic_planner.get_next_transition(state, profile)
     assert cmd_retry.component.name == "franka_jtc"
     assert cmd_retry.goal_state == LifecycleState.INACTIVE
 
@@ -278,15 +278,15 @@ def test_scenario_8_controller_activation_failure(basic_planner):
             ),
         }
     )
-    goal = SystemGoal(
+    profile = SystemProfile(
         "active",
-        hardware_goals=[Component("franka_hw", ComponentType.HARDWARE, LifecycleState.ACTIVE)],
-        controller_goals=[
+        hardware_targets=[Component("franka_hw", ComponentType.HARDWARE, LifecycleState.ACTIVE)],
+        controller_targets=[
             Component("franka_jtc", ComponentType.CONTROLLER, LifecycleState.ACTIVE)
         ],
     )
 
-    cmd = basic_planner.get_next_transition(state, goal)
+    cmd = basic_planner.get_next_transition(state, profile)
     # Command applied, but failed. We re-issue the command.
     assert cmd.component.name == "franka_jtc"
     assert cmd.goal_state == LifecycleState.ACTIVE
@@ -302,19 +302,19 @@ def test_scenario_9_asymmetric_hardware_failure(asymmetric_planner):
             ),
         }
     )
-    goal = SystemGoal(
+    profile = SystemProfile(
         "active",
-        hardware_goals=[
+        hardware_targets=[
             Component("hw_a", ComponentType.HARDWARE, LifecycleState.ACTIVE),
             Component("hw_b", ComponentType.HARDWARE, LifecycleState.ACTIVE),
         ],
-        controller_goals=[
+        controller_targets=[
             Component("dual_arm_jtc", ComponentType.CONTROLLER, LifecycleState.ACTIVE)
         ],
     )
 
     # Command applied on hw_b, but failed. We re-issue the command.
-    cmd = asymmetric_planner.get_next_transition(state, goal)
+    cmd = asymmetric_planner.get_next_transition(state, profile)
     assert cmd.component.name == "hw_b"
     assert cmd.goal_state == LifecycleState.ACTIVE
 
@@ -331,22 +331,22 @@ def test_scenario_10_controller_configure_blocked_by_hardware(basic_planner):
             ),
         }
     )
-    goal = SystemGoal(
+    profile = SystemProfile(
         "idle",
-        hardware_goals=[Component("franka_hw", ComponentType.HARDWARE, LifecycleState.INACTIVE)],
-        controller_goals=[
+        hardware_targets=[Component("franka_hw", ComponentType.HARDWARE, LifecycleState.INACTIVE)],
+        controller_targets=[
             Component("franka_jtc", ComponentType.CONTROLLER, LifecycleState.INACTIVE)
         ],
     )
 
     # First, we configure hardware before controller
-    cmd = basic_planner.get_next_transition(state, goal)
+    cmd = basic_planner.get_next_transition(state, profile)
     assert cmd.component.name == "franka_hw"
     assert cmd.goal_state == LifecycleState.INACTIVE
 
     apply_command(state, cmd)
 
-    cmd = basic_planner.get_next_transition(state, goal)
+    cmd = basic_planner.get_next_transition(state, profile)
     assert cmd.component.name == "franka_jtc"
     assert cmd.goal_state == LifecycleState.INACTIVE
 
@@ -376,31 +376,31 @@ def test_scenario_11_lifecycle_node_bringup(lifecycle_planner):
             "gripper": Component("gripper", ComponentType.CONTROLLER, LifecycleState.UNCONFIGURED),
         }
     )
-    goal = SystemGoal(
+    profile = SystemProfile(
         "active",
-        lifecycle_node_goals=[
+        lifecycle_node_targets=[
             Component("robot_manager", ComponentType.LIFECYCLE_NODE, LifecycleState.ACTIVE)
         ],
-        controller_goals=[Component("gripper", ComponentType.CONTROLLER, LifecycleState.ACTIVE)],
+        controller_targets=[Component("gripper", ComponentType.CONTROLLER, LifecycleState.ACTIVE)],
     )
 
-    cmd = lifecycle_planner.get_next_transition(state, goal)
+    cmd = lifecycle_planner.get_next_transition(state, profile)
     assert cmd.component.name == "robot_manager"
     assert cmd.component.component_type == ComponentType.LIFECYCLE_NODE
     assert cmd.goal_state == LifecycleState.INACTIVE
     apply_command(state, cmd)
 
-    cmd = lifecycle_planner.get_next_transition(state, goal)
+    cmd = lifecycle_planner.get_next_transition(state, profile)
     assert cmd.component.name == "robot_manager"
     assert cmd.goal_state == LifecycleState.ACTIVE
     apply_command(state, cmd)
 
-    cmd = lifecycle_planner.get_next_transition(state, goal)
+    cmd = lifecycle_planner.get_next_transition(state, profile)
     assert cmd.component.name == "gripper"
     assert cmd.goal_state == LifecycleState.INACTIVE
     apply_command(state, cmd)
 
-    cmd = lifecycle_planner.get_next_transition(state, goal)
+    cmd = lifecycle_planner.get_next_transition(state, profile)
     assert cmd.component.name == "gripper"
     assert cmd.goal_state == LifecycleState.ACTIVE
 
@@ -415,22 +415,22 @@ def test_scenario_12_controller_blocked_by_lifecycle_node(lifecycle_planner):
             "gripper": Component("gripper", ComponentType.CONTROLLER, LifecycleState.INACTIVE),
         }
     )
-    goal = SystemGoal(
+    profile = SystemProfile(
         "active",
-        lifecycle_node_goals=[
+        lifecycle_node_targets=[
             Component("robot_manager", ComponentType.LIFECYCLE_NODE, LifecycleState.ACTIVE)
         ],
-        controller_goals=[Component("gripper", ComponentType.CONTROLLER, LifecycleState.ACTIVE)],
+        controller_targets=[Component("gripper", ComponentType.CONTROLLER, LifecycleState.ACTIVE)],
     )
 
     # Lifecycle node must activate before the controller can
-    cmd = lifecycle_planner.get_next_transition(state, goal)
+    cmd = lifecycle_planner.get_next_transition(state, profile)
     assert cmd.component.name == "robot_manager"
     assert cmd.goal_state == LifecycleState.ACTIVE
     apply_command(state, cmd)
 
     # Now controller can activate
-    cmd = lifecycle_planner.get_next_transition(state, goal)
+    cmd = lifecycle_planner.get_next_transition(state, profile)
     assert cmd.component.name == "gripper"
     assert cmd.goal_state == LifecycleState.ACTIVE
 
@@ -445,22 +445,24 @@ def test_scenario_13_lifecycle_node_stepdown_blocked_by_controller(lifecycle_pla
             "gripper": Component("gripper", ComponentType.CONTROLLER, LifecycleState.ACTIVE),
         }
     )
-    goal = SystemGoal(
+    profile = SystemProfile(
         "idle",
-        lifecycle_node_goals=[
+        lifecycle_node_targets=[
             Component("robot_manager", ComponentType.LIFECYCLE_NODE, LifecycleState.INACTIVE)
         ],
-        controller_goals=[Component("gripper", ComponentType.CONTROLLER, LifecycleState.INACTIVE)],
+        controller_targets=[
+            Component("gripper", ComponentType.CONTROLLER, LifecycleState.INACTIVE)
+        ],
     )
 
     # Controller must deactivate first (priority: ctrl deactivate > infra down)
-    cmd = lifecycle_planner.get_next_transition(state, goal)
+    cmd = lifecycle_planner.get_next_transition(state, profile)
     assert cmd.component.name == "gripper"
     assert cmd.goal_state == LifecycleState.INACTIVE
     apply_command(state, cmd)
 
     # Now lifecycle node can step down
-    cmd = lifecycle_planner.get_next_transition(state, goal)
+    cmd = lifecycle_planner.get_next_transition(state, profile)
     assert cmd.component.name == "robot_manager"
     assert cmd.goal_state == LifecycleState.INACTIVE
 
@@ -487,19 +489,19 @@ def test_scenario_14_mixed_hw_lifecycle_and_controllers():
             "jtc": Component("jtc", ComponentType.CONTROLLER, LifecycleState.UNCONFIGURED),
         }
     )
-    goal = SystemGoal(
+    profile = SystemProfile(
         "active",
-        hardware_goals=[Component("hw_arm", ComponentType.HARDWARE, LifecycleState.ACTIVE)],
-        lifecycle_node_goals=[
+        hardware_targets=[Component("hw_arm", ComponentType.HARDWARE, LifecycleState.ACTIVE)],
+        lifecycle_node_targets=[
             Component("robot_manager", ComponentType.LIFECYCLE_NODE, LifecycleState.ACTIVE)
         ],
-        controller_goals=[Component("jtc", ComponentType.CONTROLLER, LifecycleState.ACTIVE)],
+        controller_targets=[Component("jtc", ComponentType.CONTROLLER, LifecycleState.ACTIVE)],
     )
 
     # Infrastructure steps up first (hw and lifecycle node interleaved)
     transitions = []
     for _ in range(10):
-        cmd = planner.get_next_transition(state, goal)
+        cmd = planner.get_next_transition(state, profile)
         if cmd is None:
             break
         transitions.append((cmd.component.name, cmd.goal_state))
@@ -512,5 +514,5 @@ def test_scenario_14_mixed_hw_lifecycle_and_controllers():
     ]
     assert all(c > max(infra_indices) for c in ctrl_indices)
 
-    # Verify we reached the goal
-    assert planner.get_next_transition(state, goal) is None
+    # Verify we reached the profile
+    assert planner.get_next_transition(state, profile) is None

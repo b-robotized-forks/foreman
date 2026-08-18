@@ -42,18 +42,18 @@ class TestParsedScenario:
     def test_metadata_empty(self, parsed_scenario):
         assert parsed_scenario.metadata == {}
 
-    def test_autostart_goal_state_defaults_empty(self, parsed_scenario):
-        assert parsed_scenario.autostart_goal_state == ""
+    def test_autostart_profile_defaults_empty(self, parsed_scenario):
+        assert parsed_scenario.autostart_profile == ""
 
 
 class TestAutostartScenario:
-    """Tests for a scenario configured to autostart into a goal state."""
+    """Tests for a scenario configured to autostart into a profile."""
 
-    def test_autostart_goal_state_is_running(self, parsed_autostart_scenario):
-        assert parsed_autostart_scenario.autostart_goal_state == "running"
+    def test_autostart_profile_is_running(self, parsed_autostart_scenario):
+        assert parsed_autostart_scenario.autostart_profile == "running"
 
-    def test_autostart_goal_state_is_a_declared_goal(self, parsed_autostart_scenario):
-        assert parsed_autostart_scenario.autostart_goal_state in parsed_autostart_scenario.goals
+    def test_autostart_profile_is_a_declared_profile(self, parsed_autostart_scenario):
+        assert parsed_autostart_scenario.autostart_profile in parsed_autostart_scenario.profiles
 
 
 class TestDependencyRules:
@@ -103,45 +103,45 @@ class TestDependencyRules:
         assert rule.required_hardware[0].state == LifecycleState.ACTIVE
 
 
-class TestGoalStates:
-    """Tests for all three goal states."""
+class TestProfiles:
+    """Tests for all three profiles."""
 
-    def test_all_goal_states_present(self, parsed_scenario):
-        assert set(parsed_scenario.goals.keys()) == {"idle", "broadcast_only", "running"}
+    def test_all_profiles_present(self, parsed_scenario):
+        assert set(parsed_scenario.profiles.keys()) == {"idle", "broadcast_only", "running"}
 
-    def test_idle_goal(self, parsed_scenario):
-        goal = parsed_scenario.goals["idle"]
-        assert goal.name == "idle"
+    def test_idle_profile(self, parsed_scenario):
+        profile = parsed_scenario.profiles["idle"]
+        assert profile.name == "idle"
 
-        assert len(goal.hardware_goals) == 2
-        hw_names = {c.name for c in goal.hardware_goals}
+        assert len(profile.hardware_targets) == 2
+        hw_names = {c.name for c in profile.hardware_targets}
         assert hw_names == {"FrankaHardwareInterface", "kassow"}
-        for hw in goal.hardware_goals:
+        for hw in profile.hardware_targets:
             assert hw.lifecycle_state == LifecycleState.INACTIVE
 
-        assert len(goal.controller_goals) == 3
-        ctrl_names = {c.name for c in goal.controller_goals}
+        assert len(profile.controller_targets) == 3
+        ctrl_names = {c.name for c in profile.controller_targets}
         assert ctrl_names == {
             "joint_state_broadcaster",
             "kassow_joint_trajectory_controller",
             "franka_joint_trajectory_controller",
         }
-        for ctrl in goal.controller_goals:
+        for ctrl in profile.controller_targets:
             assert ctrl.lifecycle_state == LifecycleState.INACTIVE
 
-        assert len(goal.lifecycle_node_goals) == 1
-        assert goal.lifecycle_node_goals[0].name == "dummy_lifecycle_node"
-        assert goal.lifecycle_node_goals[0].lifecycle_state == LifecycleState.INACTIVE
+        assert len(profile.lifecycle_node_targets) == 1
+        assert profile.lifecycle_node_targets[0].name == "dummy_lifecycle_node"
+        assert profile.lifecycle_node_targets[0].lifecycle_state == LifecycleState.INACTIVE
 
-    def test_broadcast_only_goal(self, parsed_scenario):
-        goal = parsed_scenario.goals["broadcast_only"]
-        assert goal.name == "broadcast_only"
+    def test_broadcast_only_profile(self, parsed_scenario):
+        profile = parsed_scenario.profiles["broadcast_only"]
+        assert profile.name == "broadcast_only"
 
-        assert len(goal.hardware_goals) == 2
-        for hw in goal.hardware_goals:
+        assert len(profile.hardware_targets) == 2
+        for hw in profile.hardware_targets:
             assert hw.lifecycle_state == LifecycleState.ACTIVE
 
-        ctrl_by_name = {c.name: c for c in goal.controller_goals}
+        ctrl_by_name = {c.name: c for c in profile.controller_targets}
         assert ctrl_by_name["joint_state_broadcaster"].lifecycle_state == LifecycleState.ACTIVE
         assert (
             ctrl_by_name["kassow_joint_trajectory_controller"].lifecycle_state
@@ -152,23 +152,23 @@ class TestGoalStates:
             == LifecycleState.INACTIVE
         )
 
-    def test_running_goal(self, parsed_scenario):
-        goal = parsed_scenario.goals["running"]
-        assert goal.name == "running"
+    def test_running_profile(self, parsed_scenario):
+        profile = parsed_scenario.profiles["running"]
+        assert profile.name == "running"
 
-        assert len(goal.hardware_goals) == 2
-        for hw in goal.hardware_goals:
+        assert len(profile.hardware_targets) == 2
+        for hw in profile.hardware_targets:
             assert hw.lifecycle_state == LifecycleState.ACTIVE
 
-        assert len(goal.controller_goals) == 3
-        for ctrl in goal.controller_goals:
+        assert len(profile.controller_targets) == 3
+        for ctrl in profile.controller_targets:
             assert ctrl.lifecycle_state == LifecycleState.ACTIVE
 
-    def test_goal_component_types(self, parsed_scenario):
-        idle = parsed_scenario.goals["idle"]
-        for hw in idle.hardware_goals:
+    def test_profile_component_types(self, parsed_scenario):
+        idle = parsed_scenario.profiles["idle"]
+        for hw in idle.hardware_targets:
             assert hw.component_type == ComponentType.HARDWARE
-        for ctrl in idle.controller_goals:
+        for ctrl in idle.controller_targets:
             assert ctrl.component_type == ComponentType.CONTROLLER
-        for lc in idle.lifecycle_node_goals:
+        for lc in idle.lifecycle_node_targets:
             assert lc.component_type == ComponentType.LIFECYCLE_NODE

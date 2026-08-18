@@ -5,23 +5,23 @@ from foreman.types import (
     ComponentType,
     ControllerDependencyRule,
     LifecycleState,
-    SystemGoal,
+    SystemProfile,
     SystemState,
     SystemTransitionCommand,
 )
 
 
 class Planner:
-    """Plan the next single step towards the lifecycle state goal of the system."""
+    """Plan the next single step towards the system's target profile."""
 
     def __init__(self, dependency_rules: List[ControllerDependencyRule]):
         self.rules = {rule.controller_name: rule for rule in dependency_rules}
 
     def get_next_transition(
-        self, current_state: SystemState, goal: SystemGoal
+        self, current_state: SystemState, profile: SystemProfile
     ) -> Optional[SystemTransitionCommand]:
         """
-        Output the next transition based on named goal state and these priorities.
+        Output the next transition based on the named profile and these priorities.
 
         Priority: C deactivate > HW Down > HW Up > C cleanup > C config > C activate.
         """
@@ -39,16 +39,16 @@ class Planner:
         # we'll probably build a DAG, so any component can depend on any other.
         # For simplicity, this is it for now, bear with me that in "HardwareRequirements" for example
         # we have hardware_interfaces AND lifecycle nodes.
-        infrastructure_goals = goal.hardware_goals + goal.lifecycle_node_goals
-        for infra_goal in infrastructure_goals:
-            infra_component = current_state.components.get(infra_goal.name)
+        infrastructure_targets = profile.hardware_targets + profile.lifecycle_node_targets
+        for infra_target in infrastructure_targets:
+            infra_component = current_state.components.get(infra_target.name)
 
             if not infra_component:
                 infra_component = Component(
-                    infra_goal.name, infra_goal.component_type, LifecycleState.UNCONFIGURED
+                    infra_target.name, infra_target.component_type, LifecycleState.UNCONFIGURED
                 )
 
-            next_state = infra_component.lifecycle_state.step_towards(infra_goal.lifecycle_state)
+            next_state = infra_component.lifecycle_state.step_towards(infra_target.lifecycle_state)
             if next_state:
                 if next_state < infra_component.lifecycle_state:
                     if not self._can_hardware_step_down(
@@ -61,16 +61,16 @@ class Planner:
                 cmds_hw_step_up.append(SystemTransitionCommand(infra_component, next_state))
 
         # 2. Controller Transitions
-        for controller_goal in goal.controller_goals:
-            controller_component = current_state.components.get(controller_goal.name)
+        for controller_target in profile.controller_targets:
+            controller_component = current_state.components.get(controller_target.name)
 
             if not controller_component:
                 controller_component = Component(
-                    controller_goal.name, ComponentType.CONTROLLER, LifecycleState.UNCONFIGURED
+                    controller_target.name, ComponentType.CONTROLLER, LifecycleState.UNCONFIGURED
                 )
 
             next_state = controller_component.lifecycle_state.step_towards(
-                controller_goal.lifecycle_state
+                controller_target.lifecycle_state
             )
 
             if next_state:
@@ -79,7 +79,7 @@ class Planner:
                 if next_state > current:
                     # Guard activation AND configuration against hardware states
                     if not self._can_controller_step_up(
-                        controller_goal.name, next_state, current_state
+                        controller_target.name, next_state, current_state
                     ):
                         continue
 

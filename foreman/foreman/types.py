@@ -131,13 +131,13 @@ class ControllerDependencyRule:
 
 
 @dataclass
-class SystemGoal:
-    """Named system goal state. Populated from YAML."""
+class SystemProfile:
+    """Named system profile. Populated from YAML."""
 
     name: str
-    hardware_goals: List[Component] = field(default_factory=list)
-    controller_goals: List[Component] = field(default_factory=list)
-    lifecycle_node_goals: List[Component] = field(default_factory=list)
+    hardware_targets: List[Component] = field(default_factory=list)
+    controller_targets: List[Component] = field(default_factory=list)
+    lifecycle_node_targets: List[Component] = field(default_factory=list)
 
 
 @dataclass
@@ -165,10 +165,10 @@ class ErrorSnapshot:
 
 @dataclass
 class ForemanSnapshot:
-    goal: str
+    profile: str
     ready: bool
-    at_goal: bool
+    at_profile: bool
     error: ErrorSnapshot
     components: List[Component]
-    all_goals: List[str]
-    available_goals: List[str]
+    all_profiles: List[str]
+    available_profiles: List[str]
