@@ -123,7 +123,7 @@ class ForemanNode(Node):
                     else "unknown"
                 )
                 fault = ForemanError(
-                    category=ForemanErrorCategory.DELIVERY,
+                    category=ForemanErrorCategory.TRANSPORT,
                     message=f"Service call exception: {str(e)}",
                     component_names=[comp_name],
                 )
