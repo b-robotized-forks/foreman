@@ -12,6 +12,7 @@ endif()
 
 find_package(ament_cmake REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
+find_package(action_msgs REQUIRED)
 
 set(msg_files
   "msg/ComponentState.msg"
@@ -23,9 +24,15 @@ set(srv_files
   "srv/SetGoal.srv"
 )
 
+set(action_files
+  "action/SetGoal.action"
+)
+
 rosidl_generate_interfaces(${PROJECT_NAME}
   ${msg_files}
   ${srv_files}
+  ${action_files}
+  DEPENDENCIES action_msgs
 )
 
 ament_export_dependencies(rosidl_default_runtime)
