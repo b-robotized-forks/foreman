@@ -29,9 +29,9 @@ class RosStatusPublisher:
         observed = {component.name: component for component in snapshot.components}
 
         msg = ForemanStatus()
-        msg.goal = snapshot.goal
+        msg.profile = snapshot.profile
         msg.ready = snapshot.ready
-        msg.at_goal = snapshot.at_goal
+        msg.at_profile = snapshot.at_profile
         msg.error.is_error = snapshot.error.is_error
         msg.error.category = snapshot.error.category
         msg.error.message = snapshot.error.message
@@ -48,8 +48,8 @@ class RosStatusPublisher:
                 component_msg.lifecycle_state = component.lifecycle_state.name
             msg.error.components.append(component_msg)
 
-        msg.all_goals = list(snapshot.all_goals)
-        msg.available_goals = list(snapshot.available_goals)
+        msg.all_profiles = list(snapshot.all_profiles)
+        msg.available_profiles = list(snapshot.available_profiles)
 
         if msg == self._last_published:
             return

@@ -10,7 +10,7 @@ from foreman.types import (
     ControllerDependencyRule,
     HardwareRequirement,
     LifecycleState,
-    SystemGoal,
+    SystemProfile,
 )
 
 # TODO: Once we settle on a config model
@@ -25,11 +25,11 @@ class ParsedScenario:
 
     hardware: List[str]
     dependency_rules: List[ControllerDependencyRule]
-    goals: Dict[str, SystemGoal]
+    profiles: Dict[str, SystemProfile]
     lifecycle_nodes: List[str] = field(default_factory=list)
     metadata: Dict[str, Any] = field(default_factory=dict)
     tracked_components: Set[str] = field(default_factory=set)
-    autostart_goal_state: str = ""
+    autostart_profile: str = ""
 
 
 def parse_state_string(state_str: str) -> LifecycleState:
@@ -100,7 +100,7 @@ def parse_yaml_file(file_path: Path) -> ParsedScenario:
     if data is None:
         raise ValueError("Empty YAML file")
 
-    autostart_goal_state = data.get("autostart_goal_state", "")
+    autostart_profile = data.get("autostart_profile", "")
     hardware = data.get("hardware", [])
     lifecycle_nodes = data.get("lifecycle_nodes", [])
 
@@ -114,15 +114,15 @@ def parse_yaml_file(file_path: Path) -> ParsedScenario:
             ControllerDependencyRule(controller_name=ctrl_name, required_hardware=reqs)
         )
 
-    goals = {}
-    goal_states = data.get("goal_states", {})
-    for goal_name, goal_config in goal_states.items():
-        hw_goals = []
-        ctrl_goals = []
-        lc_goals = []
+    profiles = {}
+    profile_configs = data.get("profiles", {})
+    for profile_name, profile_config in profile_configs.items():
+        hw_targets = []
+        ctrl_targets = []
+        lc_targets = []
 
-        for hw_name, state_str in goal_config.get("hardware", {}).items():
-            hw_goals.append(
+        for hw_name, state_str in profile_config.get("hardware", {}).items():
+            hw_targets.append(
                 Component(
                     name=hw_name,
                     component_type=ComponentType.HARDWARE,
@@ -130,8 +130,8 @@ def parse_yaml_file(file_path: Path) -> ParsedScenario:
                 )
             )
 
-        for ctrl_name, state_str in goal_config.get("controllers", {}).items():
-            ctrl_goals.append(
+        for ctrl_name, state_str in profile_config.get("controllers", {}).items():
+            ctrl_targets.append(
                 Component(
                     name=ctrl_name,
                     component_type=ComponentType.CONTROLLER,
@@ -139,8 +139,8 @@ def parse_yaml_file(file_path: Path) -> ParsedScenario:
                 )
             )
 
-        for lc_name, state_str in goal_config.get("lifecycle_nodes", {}).items():
-            lc_goals.append(
+        for lc_name, state_str in profile_config.get("lifecycle_nodes", {}).items():
+            lc_targets.append(
                 Component(
                     name=lc_name,
                     component_type=ComponentType.LIFECYCLE_NODE,
@@ -148,20 +148,20 @@ def parse_yaml_file(file_path: Path) -> ParsedScenario:
                 )
             )
 
-        goals[goal_name] = SystemGoal(
-            name=goal_name,
-            hardware_goals=hw_goals,
-            controller_goals=ctrl_goals,
-            lifecycle_node_goals=lc_goals,
+        profiles[profile_name] = SystemProfile(
+            name=profile_name,
+            hardware_targets=hw_targets,
+            controller_targets=ctrl_targets,
+            lifecycle_node_targets=lc_targets,
         )
 
     metadata = {}
     known_keys = {
-        "autostart_goal_state",
+        "autostart_profile",
         "hardware",
         "lifecycle_nodes",
         "controllers",
-        "goal_states",
+        "profiles",
     }
     for key, value in data.items():
         if key not in known_keys:
@@ -170,23 +170,23 @@ def parse_yaml_file(file_path: Path) -> ParsedScenario:
     tracked_components = set(hardware + lifecycle_nodes)
     for rule in dependency_rules:
         tracked_components.add(rule.controller_name)
-    for goal in goals.values():
-        tracked_components.update(c.name for c in goal.hardware_goals)
-        tracked_components.update(c.name for c in goal.controller_goals)
-        tracked_components.update(c.name for c in goal.lifecycle_node_goals)
+    for profile in profiles.values():
+        tracked_components.update(c.name for c in profile.hardware_targets)
+        tracked_components.update(c.name for c in profile.controller_targets)
+        tracked_components.update(c.name for c in profile.lifecycle_node_targets)
 
-    if autostart_goal_state and autostart_goal_state not in goals:
+    if autostart_profile and autostart_profile not in profiles:
         raise ValueError(
-            f"autostart_goal_state '{autostart_goal_state}' not found in goal_states. "
-            f"Available: {list(goals.keys())}"
+            f"autostart_profile '{autostart_profile}' not found in profiles. "
+            f"Available: {list(profiles.keys())}"
         )
 
     return ParsedScenario(
-        autostart_goal_state=autostart_goal_state,
+        autostart_profile=autostart_profile,
         hardware=hardware,
         lifecycle_nodes=lifecycle_nodes,
         dependency_rules=dependency_rules,
-        goals=goals,
+        profiles=profiles,
         metadata=metadata,
         tracked_components=tracked_components,
     )

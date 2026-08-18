@@ -11,11 +11,13 @@ class AutostartAdapter:
         50  # consecutive ticks with no state change before requesting transition
     )
 
-    def __init__(self, node: Node, engine: ForemanEngine, goal_name: str, autostart: bool = False):
+    def __init__(
+        self, node: Node, engine: ForemanEngine, profile_name: str, autostart: bool = False
+    ):
         self._node = node
         self._autostart = autostart
         self.engine = engine
-        self.goal_name = goal_name
+        self.profile_name = profile_name
         self.transition_success = False
         self._last_observed_states = None
         self._stable_ticks = 0
@@ -27,7 +29,8 @@ class AutostartAdapter:
 
         if self.transition_success and self.engine.get_engine_snapshot().error.is_error:
             self._node.get_logger().warn(
-                f"Autostart goal '{self.goal_name}' aborted mid-transition. Resetting for retry."
+                f"Autostart profile '{self.profile_name}' aborted mid-transition. "
+                "Resetting for retry."
             )
             self.transition_success = False
             self._stable_ticks = 0
@@ -47,20 +50,20 @@ class AutostartAdapter:
             return
 
         self._node.get_logger().info(
-            "All components stable and ready. Requesting goal transition."
+            "All components stable and ready. Requesting profile transition."
         )
-        self.transition_success = self.send_goal_request()
+        self.transition_success = self.send_profile_request()
 
     @property
     def is_done(self) -> bool:
-        """True once the goal was accepted and the engine has not aborted it."""
+        """True once the profile was accepted and the engine has not aborted it."""
         if not self.transition_success:
             return False
         return not self.engine.get_engine_snapshot().error.is_error
 
-    def send_goal_request(self) -> bool:
-        """Send goal request to the engine. Returns True if accepted."""
-        response = self.engine.request_goal(self.goal_name)
+    def send_profile_request(self) -> bool:
+        """Send profile request to the engine. Returns True if accepted."""
+        response = self.engine.request_profile(self.profile_name)
         if response.success:
             self._node.get_logger().info(f"Autostart: {response.message}")
         else:

@@ -31,7 +31,7 @@ controllers:
   franka_joint_trajectory_controller:
     requires: [franka, active]
 
-goal_states:
+profiles:
 
   idle:
     controllers:
@@ -53,12 +53,12 @@ goal_states:
 ros2 run foreman foreman_node --ros-args -p config_path:=/path/to/scenario.yaml
 ```
 
-### 3. Set the goal
+### 3. Set the profile
 
 ```bash
-ros2 service call /foreman/set_goal foreman_msgs/srv/SetGoal "{goal: 'idle'}"
+ros2 service call /foreman/set_profile foreman_msgs/srv/SetProfile "{profile: 'idle'}"
 ```
-... or any other named goal in `config/scenario.yaml`
+... or any other named profile in `config/scenario.yaml`
 
 
 ### 4. Monitor the component state changes
@@ -82,4 +82,4 @@ Check `node.py` how we glue it all up into a ros executable and run it.
     - `ComponentStateMonitor` (inbound): Subscribes to `cm/activity` for HW + controllers. Monitors lifecycle nodes via `/node/transition_event` subscription with QoS matched event for discovery/death detection.
     - `ControllerManagerServiceCaller` (outbound): Calls `controller_manager` services.
     - `LifecycleNodeServiceCaller` (outbound): Calls `/node/change_state` for lifecycle node transitions.
-    - `RosSetGoalServer` (inbound): Exposes `/foreman/set_goal` service.
+    - `RosSetProfileServer` (inbound): Exposes `/foreman/set_profile` service.

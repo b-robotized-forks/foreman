@@ -14,7 +14,7 @@ controllers:
   franka_joint_trajectory_controller:
     requires: [FrankaHardwareInterface, active]
 
-goal_states:
+profiles:
 
   idle:
     controllers:

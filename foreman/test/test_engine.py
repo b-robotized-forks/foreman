@@ -10,20 +10,20 @@ from foreman.types import (
     ForemanError,
     ForemanErrorCategory,
     LifecycleState,
-    SystemGoal,
+    SystemProfile,
 )
 
 
 @pytest.fixture
 def minimal_foreman_config():
-    goal = SystemGoal(
-        "active_goal",
-        hardware_goals=[Component("hw1", ComponentType.HARDWARE, LifecycleState.ACTIVE)],
+    profile = SystemProfile(
+        "active_profile",
+        hardware_targets=[Component("hw1", ComponentType.HARDWARE, LifecycleState.ACTIVE)],
     )
     return ParsedScenario(
         hardware=["hw1"],
         dependency_rules=[],
-        goals={"active_goal": goal},
+        profiles={"active_profile": profile},
         tracked_components={"hw1"},
     )
 
@@ -39,31 +39,31 @@ def test_engine_error_and_abort(minimal_foreman_config):
     response = engine.set_system_state(initial_components)
     assert response.success is True
 
-    # goal to activate comes
-    response = engine.request_goal("active_goal")
+    # profile to activate comes
+    response = engine.request_profile("active_profile")
     assert response.success is True
-    assert engine.is_at_goal is False
+    assert engine.is_at_profile is False
 
     # planner wants to transition
     next_transition_command = engine.get_next_transition()
     assert next_transition_command is not None
     assert next_transition_command.goal_state == LifecycleState.INACTIVE
 
-    # some failure happens, and we abort goal
+    # some failure happens, and we abort profile
     error = ForemanError(ForemanErrorCategory.EXECUTION, ERROR_MSG, ["hw1"])
-    engine.abort_goal(error)
+    engine.abort_profile(error)
 
-    # system dropped the goal due to abort
-    assert engine.is_at_goal is False
+    # system dropped the profile due to abort
+    assert engine.is_at_profile is False
 
     # planner outputs nothing
     assert engine.get_next_transition() is None
 
-    # frontend will see the error and no active goal
+    # frontend will see the error and no active profile
     snapshot = engine.get_engine_snapshot()
     assert snapshot.error.is_error is True
     assert snapshot.error.message == ERROR_MSG
-    assert snapshot.goal == "None"
+    assert snapshot.profile == "None"
 
 
 def test_set_system_state_expected_transition(minimal_foreman_config):
@@ -73,7 +73,7 @@ def test_set_system_state_expected_transition(minimal_foreman_config):
     # initialize unconfigured
     comp1 = Component("hw1", ComponentType.HARDWARE, LifecycleState.UNCONFIGURED)
     engine.set_system_state([comp1])
-    engine.request_goal("active_goal")
+    engine.request_profile("active_profile")
 
     # verify planner issues command
     cmd = engine.get_next_transition()
@@ -101,10 +101,10 @@ def test_set_system_state_unexpected_downgrade(minimal_foreman_config):
     # start in active state
     comp1 = Component("hw1", ComponentType.HARDWARE, LifecycleState.ACTIVE)
     engine.set_system_state([comp1])
-    engine.request_goal("active_goal")
+    engine.request_profile("active_profile")
 
-    # verify we are at goal and no commands are active
-    assert engine.is_at_goal is True
+    # verify we are at profile and no commands are active
+    assert engine.is_at_profile is True
     assert engine.get_next_transition() is None
 
     # simulate unprompted hardware crash
@@ -122,7 +122,7 @@ def test_set_system_state_unexpected_downgrade(minimal_foreman_config):
     assert snapshot.error.is_error is True
     assert snapshot.error.category == ForemanErrorCategory.UNEXPECTED_STATE.value
     assert "hw1" in snapshot.error.components
-    assert snapshot.goal == "None"
+    assert snapshot.profile == "None"
 
     # verify planner halts
     assert engine.get_next_transition() is None
@@ -133,30 +133,30 @@ def test_set_system_state_unexpected_downgrade(minimal_foreman_config):
 
 @pytest.fixture
 def lifecycle_foreman_config():
-    goal = SystemGoal(
-        "active_goal",
-        lifecycle_node_goals=[
+    profile = SystemProfile(
+        "active_profile",
+        lifecycle_node_targets=[
             Component("robot_manager", ComponentType.LIFECYCLE_NODE, LifecycleState.ACTIVE)
         ],
     )
     return ParsedScenario(
         hardware=[],
         dependency_rules=[],
-        goals={"active_goal": goal},
+        profiles={"active_profile": profile},
         lifecycle_nodes=["robot_manager"],
         tracked_components={"robot_manager"},
     )
 
 
-def test_goal_rejects_missing_lifecycle_node(lifecycle_foreman_config):
-    """Engine rejects goal if lifecycle node is not in observed state."""
+def test_profile_rejects_missing_lifecycle_node(lifecycle_foreman_config):
+    """Engine rejects profile if lifecycle node is not in observed state."""
     lock = threading.Lock()
     engine = ForemanEngine(lifecycle_foreman_config, lock)
 
     # Only report hardware, no lifecycle node in state
     engine.set_system_state([Component("some_hw", ComponentType.HARDWARE, LifecycleState.ACTIVE)])
 
-    response = engine.request_goal("active_goal")
+    response = engine.request_profile("active_profile")
     assert response.success is False
     assert "robot_manager" in response.message
 
@@ -168,7 +168,7 @@ def test_lifecycle_node_expected_transition(lifecycle_foreman_config):
 
     initial = Component("robot_manager", ComponentType.LIFECYCLE_NODE, LifecycleState.UNCONFIGURED)
     engine.set_system_state([initial])
-    engine.request_goal("active_goal")
+    engine.request_profile("active_profile")
 
     # Planner issues a command
     cmd = engine.get_next_transition()
@@ -188,11 +188,11 @@ def test_unexpected_lifecycle_node_state_change(lifecycle_foreman_config):
     lock = threading.Lock()
     engine = ForemanEngine(lifecycle_foreman_config, lock)
 
-    # Start at goal
+    # Start at profile
     active = Component("robot_manager", ComponentType.LIFECYCLE_NODE, LifecycleState.ACTIVE)
     engine.set_system_state([active])
-    engine.request_goal("active_goal")
-    assert engine.is_at_goal is True
+    engine.request_profile("active_profile")
+    assert engine.is_at_profile is True
 
     # Simulate unprompted lifecycle node crash
     crashed = Component("robot_manager", ComponentType.LIFECYCLE_NODE, LifecycleState.UNCONFIGURED)
@@ -204,7 +204,7 @@ def test_unexpected_lifecycle_node_state_change(lifecycle_foreman_config):
 
     snapshot = engine.get_engine_snapshot()
     assert snapshot.error.is_error is True
-    assert snapshot.goal == "None"
+    assert snapshot.profile == "None"
 
 
 # --- Unsatisfiable Dependency Tests ---
@@ -223,17 +223,17 @@ def dependency_config():
         )
     ]
 
-    # Goal that requests controller active but doesn't include lifecycle node
-    goal_missing_dep = SystemGoal(
+    # Profile that requests controller active but doesn't include lifecycle node
+    profile_missing_dep = SystemProfile(
         "active",
-        controller_goals=[Component("gripper", ComponentType.CONTROLLER, LifecycleState.ACTIVE)],
+        controller_targets=[Component("gripper", ComponentType.CONTROLLER, LifecycleState.ACTIVE)],
     )
 
-    # Goal that properly includes the lifecycle node
-    goal_with_dep = SystemGoal(
+    # Profile that properly includes the lifecycle node
+    profile_with_dep = SystemProfile(
         "active_full",
-        controller_goals=[Component("gripper", ComponentType.CONTROLLER, LifecycleState.ACTIVE)],
-        lifecycle_node_goals=[
+        controller_targets=[Component("gripper", ComponentType.CONTROLLER, LifecycleState.ACTIVE)],
+        lifecycle_node_targets=[
             Component("robot_manager", ComponentType.LIFECYCLE_NODE, LifecycleState.ACTIVE)
         ],
     )
@@ -241,14 +241,14 @@ def dependency_config():
     return ParsedScenario(
         hardware=[],
         dependency_rules=rules,
-        goals={"active": goal_missing_dep, "active_full": goal_with_dep},
+        profiles={"active": profile_missing_dep, "active_full": profile_with_dep},
         lifecycle_nodes=["robot_manager"],
         tracked_components={"gripper", "robot_manager"},
     )
 
 
-def test_goal_rejected_unsatisfiable_dependency(dependency_config):
-    """Goal is rejected when controller dependency is not met and not in goal."""
+def test_profile_rejected_unsatisfiable_dependency(dependency_config):
+    """Profile is rejected when controller dependency is not met and not in profile."""
     lock = threading.Lock()
     engine = ForemanEngine(dependency_config, lock)
 
@@ -259,14 +259,14 @@ def test_goal_rejected_unsatisfiable_dependency(dependency_config):
         ]
     )
 
-    response = engine.request_goal("active")
+    response = engine.request_profile("active")
     assert response.success is False
     assert "gripper" in response.message
     assert "robot_manager" in response.message
 
 
-def test_goal_accepted_when_dependency_in_goal(dependency_config):
-    """Goal is accepted when dependency is included in goal targets."""
+def test_profile_accepted_when_dependency_in_profile(dependency_config):
+    """Profile is accepted when dependency is included in profile targets."""
     lock = threading.Lock()
     engine = ForemanEngine(dependency_config, lock)
 
@@ -277,12 +277,12 @@ def test_goal_accepted_when_dependency_in_goal(dependency_config):
         ]
     )
 
-    response = engine.request_goal("active_full")
+    response = engine.request_profile("active_full")
     assert response.success is True
 
 
-def test_goal_accepted_when_dependency_already_satisfied(dependency_config):
-    """Goal is accepted when dependency is already at required state."""
+def test_profile_accepted_when_dependency_already_satisfied(dependency_config):
+    """Profile is accepted when dependency is already at required state."""
     lock = threading.Lock()
     engine = ForemanEngine(dependency_config, lock)
 
@@ -293,23 +293,23 @@ def test_goal_accepted_when_dependency_already_satisfied(dependency_config):
         ]
     )
 
-    response = engine.request_goal("active")
+    response = engine.request_profile("active")
     assert response.success is True
 
 
-# --- Snapshot Goal Availability Tests ---
-def test_snapshot_available_goals_empty_before_ready(minimal_foreman_config):
-    """Snapshot reports no available goals before the first observed state."""
+# --- Snapshot Profile Availability Tests ---
+def test_snapshot_available_profiles_empty_before_ready(minimal_foreman_config):
+    """Snapshot reports no available profiles before the first observed state."""
     lock = threading.Lock()
     engine = ForemanEngine(minimal_foreman_config, lock)
 
     snapshot = engine.get_engine_snapshot()
-    assert snapshot.all_goals == ["active_goal"]
-    assert snapshot.available_goals == []
+    assert snapshot.all_profiles == ["active_profile"]
+    assert snapshot.available_profiles == []
 
 
-def test_snapshot_available_goals_reflects_dependency_satisfaction(dependency_config):
-    """Available goals narrow to what's achievable, e.g. after a tool change."""
+def test_snapshot_available_profiles_reflects_dependency_satisfaction(dependency_config):
+    """Available profiles narrow to what's achievable, e.g. after a tool change."""
     lock = threading.Lock()
     engine = ForemanEngine(dependency_config, lock)
 
@@ -321,8 +321,8 @@ def test_snapshot_available_goals_reflects_dependency_satisfaction(dependency_co
         ]
     )
     snapshot = engine.get_engine_snapshot()
-    assert set(snapshot.all_goals) == {"active", "active_full"}
-    assert snapshot.available_goals == ["active_full"]
+    assert set(snapshot.all_profiles) == {"active", "active_full"}
+    assert snapshot.available_profiles == ["active_full"]
 
     # robot_manager now active (e.g. after a tool change): "active" becomes achievable too.
     engine.set_system_state(
@@ -332,4 +332,4 @@ def test_snapshot_available_goals_reflects_dependency_satisfaction(dependency_co
         ]
     )
     snapshot = engine.get_engine_snapshot()
-    assert set(snapshot.available_goals) == {"active", "active_full"}
+    assert set(snapshot.available_profiles) == {"active", "active_full"}

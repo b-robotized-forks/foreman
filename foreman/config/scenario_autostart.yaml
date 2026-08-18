@@ -1,4 +1,4 @@
-autostart_goal_state: running
+autostart_profile: running
 
 hardware:
   - FrankaHardwareInterface
@@ -18,7 +18,7 @@ controllers:
   franka_joint_trajectory_controller:
     requires: [FrankaHardwareInterface, active]
 
-goal_states:
+profiles:
 
   idle:
     controllers:

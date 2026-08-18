@@ -51,14 +51,16 @@ class ForemanNode(Node):
             node=self, lifecycle_nodes=self.foreman_config.lifecycle_nodes
         )
 
-        self.ros_set_goal_server = adapters.RosSetGoalServer(node=self, engine=self.foreman_engine)
+        self.ros_set_profile_server = adapters.RosSetProfileServer(
+            node=self, engine=self.foreman_engine
+        )
         self.ros_status_publisher = adapters.RosStatusPublisher(node=self)
 
         self.autostart_adapter = adapters.AutostartAdapter(
             node=self,
             engine=self.foreman_engine,
-            goal_name=self.foreman_config.autostart_goal_state,
-            autostart=bool(self.foreman_config.autostart_goal_state),
+            profile_name=self.foreman_config.autostart_profile,
+            autostart=bool(self.foreman_config.autostart_profile),
         )
 
         # MAIN LOOP ================================================
@@ -75,7 +77,7 @@ class ForemanNode(Node):
 
     def callback_main_loop(self):
         """Execute the main control loop."""
-        if bool(self.foreman_config.autostart_goal_state) and not self.autostart_adapter.is_done:
+        if bool(self.foreman_config.autostart_profile) and not self.autostart_adapter.is_done:
             self.autostart_adapter.autostart()
 
         self.ros_status_publisher.publish_status(self.foreman_engine.get_engine_snapshot())
@@ -105,7 +107,7 @@ class ForemanNode(Node):
                         message="Service rejected the transition.",
                         component_names=[comp_name],
                     )
-                    self._log_and_abort_goal(fault)
+                    self._log_and_abort_profile(fault)
             except Exception as e:
                 comp_name = (
                     self._active_transition.component.name
@@ -117,7 +119,7 @@ class ForemanNode(Node):
                     message=f"Service call exception: {str(e)}",
                     component_names=[comp_name],
                 )
-                self._log_and_abort_goal(fault)
+                self._log_and_abort_profile(fault)
             finally:
                 self._service_call_active_future = None
                 self._active_transition = None
@@ -147,11 +149,11 @@ class ForemanNode(Node):
                 message=f"Failed to execute transition: {str(e)}",
                 component_names=[command.component.name],
             )
-            self._log_and_abort_goal(fault)
+            self._log_and_abort_profile(fault)
             self._active_transition = None
 
-    def _log_and_abort_goal(self, fault: ForemanError):
-        self.foreman_engine.abort_goal(fault)
+    def _log_and_abort_profile(self, fault: ForemanError):
+        self.foreman_engine.abort_profile(fault)
         self.get_logger().error(
             f"[{fault.category.value}] {fault.message}. Failed components: {fault.component_names}"
         )

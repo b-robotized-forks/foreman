@@ -1,10 +1,10 @@
 # Current Foreman engine status.
 
-string goal
+string profile
 bool ready
-bool at_goal
+bool at_profile
 ForemanErrorState error
-# Every goal name declared in scenario.yaml.
-string[] all_goals
-# Subset of all_goals currently achievable given observed component state.
-string[] available_goals
+# Every profile name declared in scenario.yaml.
+string[] all_profiles
+# Subset of all_profiles currently achievable given observed component state.
+string[] available_profiles

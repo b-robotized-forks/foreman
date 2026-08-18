@@ -11,7 +11,7 @@ from foreman.types import (
     ForemanResponse,
     ForemanSnapshot,
     LifecycleState,
-    SystemGoal,
+    SystemProfile,
     SystemState,
     SystemTransitionCommand,
 )
@@ -30,26 +30,26 @@ class ForemanEngine:
         self._state = SystemState()
         self._state_lock = state_lock
 
-        self._current_goal = None
+        self._current_profile = None
         self._is_ready = False  # when we get first /activity reading
         self._error_state: Optional[ForemanError] = None
         self._last_issued_command: Optional[SystemTransitionCommand] = None
 
     @property
-    def is_at_goal(self) -> bool:
-        """Checks if there are any remaining transitions to reach the goal."""
+    def is_at_profile(self) -> bool:
+        """Checks if there are any remaining transitions to reach the profile."""
         with self._state_lock:
-            return self._locked_is_at_goal()
+            return self._locked_is_at_profile()
 
-    def request_goal(self, goal_name: str) -> ForemanResponse:
+    def request_profile(self, profile_name: str) -> ForemanResponse:
         """
-        Request a new goal for the system.
+        Request a new profile for the system.
 
         Returns: (success, message)
         """
-        goal = self._config.goals.get(goal_name)
-        if not goal:
-            return ForemanResponse(False, f"Goal '{goal_name}' not found in configuration.")
+        profile = self._config.profiles.get(profile_name)
+        if not profile:
+            return ForemanResponse(False, f"Profile '{profile_name}' not found in configuration.")
 
         with self._state_lock:
             if not self._is_ready:
@@ -57,53 +57,53 @@ class ForemanEngine:
                     False, "Foreman not ready. Is /activity topic being published?"
                 )
 
-            missing_components = self._locked_missing_goal_components(goal)
+            missing_components = self._locked_missing_profile_components(profile)
             if missing_components:
                 return ForemanResponse(
                     False,
-                    f"Cannot accept goal '{goal_name}'. Missing components in observed state: {missing_components}",
+                    f"Cannot accept profile '{profile_name}'. Missing components in observed state: {missing_components}",
                 )
 
-            unsatisfiable = self._locked_check_unsatisfiable_dependencies(goal)
+            unsatisfiable = self._locked_check_unsatisfiable_dependencies(profile)
             if unsatisfiable:
                 return ForemanResponse(
                     False,
-                    f"Cannot accept goal '{goal_name}'. Unsatisfiable dependencies:\n"
+                    f"Cannot accept profile '{profile_name}'. Unsatisfiable dependencies:\n"
                     + "\n".join(f"  - {msg}" for msg in unsatisfiable),
                 )
 
-            error_cleared_msg = "Error cleared on new goal. " if self._error_state else ""
-            self._error_state = None  # new goal received, clear error and try again.
+            error_cleared_msg = "Error cleared on new profile. " if self._error_state else ""
+            self._error_state = None  # new profile received, clear error and try again.
             self._last_issued_command = None
 
-            # TODO: minor. On first goal, if we're already at goal, we don't catch this, as self._current_goal == Null.
-            # Fix this so we log "Already at goal"
-            if self._current_goal == goal:
-                if self._locked_is_at_goal():
-                    return ForemanResponse(True, f"Already at goal '{goal_name}'.")
-                return ForemanResponse(True, f"Already transitioning to '{goal_name}'.")
+            # TODO: minor. On first profile, if we're already at profile, we don't catch this, as self._current_profile == Null.
+            # Fix this so we log "Already at profile"
+            if self._current_profile == profile:
+                if self._locked_is_at_profile():
+                    return ForemanResponse(True, f"Already at profile '{profile_name}'.")
+                return ForemanResponse(True, f"Already transitioning to '{profile_name}'.")
 
-            self._current_goal = goal
+            self._current_profile = profile
 
-        return ForemanResponse(True, f"{error_cleared_msg}Goal '{goal_name}' accepted.")
+        return ForemanResponse(True, f"{error_cleared_msg}Profile '{profile_name}' accepted.")
 
-    def abort_goal(self, error: ForemanError):
-        """Aborts the current goal by stopping transitions."""
+    def abort_profile(self, error: ForemanError):
+        """Aborts the current profile by stopping transitions."""
         with self._state_lock:
             self._error_state = error
             self._last_issued_command = None
             self._locked_abort_transition()
 
     def get_next_transition(self) -> Optional[SystemTransitionCommand]:
-        """Calculate the next step toward the goal."""
-        if not self._current_goal:
+        """Calculate the next step toward the profile."""
+        if not self._current_profile:
             return None
 
         with self._state_lock:
             if not self._is_ready or self._error_state:
                 return None
 
-            cmd = self._planner.get_next_transition(self._state, self._current_goal)
+            cmd = self._planner.get_next_transition(self._state, self._current_profile)
             self._last_issued_command = cmd
             return cmd
 
@@ -125,7 +125,7 @@ class ForemanEngine:
             self._is_ready = True
 
             # In these cases, we just observe state
-            if self._error_state or not was_ready or not self._current_goal:
+            if self._error_state or not was_ready or not self._current_profile:
                 return ForemanResponse(True, "System state observed.")
 
             # otherwise, check for anomalies among components listed in yaml file
@@ -150,7 +150,7 @@ class ForemanEngine:
                         )
 
             # unexpected missing components
-            missing_components = self._locked_missing_goal_components(self._current_goal)
+            missing_components = self._locked_missing_profile_components(self._current_profile)
 
             # if any anomalies, emit error
             if unexpected_changes or missing_components:
@@ -184,8 +184,8 @@ class ForemanEngine:
             return ForemanResponse(True, "System state observed with no anomalies.")
 
     @property
-    def current_goal_name(self) -> str:
-        return self._current_goal.name if self._current_goal else "None"
+    def current_profile_name(self) -> str:
+        return self._current_profile.name if self._current_profile else "None"
 
     @property
     def is_ready(self) -> bool:
@@ -196,9 +196,9 @@ class ForemanEngine:
         """Return a simplified snapshot of the system state."""
         with self._state_lock:
             return ForemanSnapshot(
-                goal=self.current_goal_name,
+                profile=self.current_profile_name,
                 ready=self._is_ready,
-                at_goal=self._locked_is_at_goal(),
+                at_profile=self._locked_is_at_profile(),
                 error=ErrorSnapshot(
                     is_error=self._error_state is not None,
                     category=(
@@ -210,114 +210,115 @@ class ForemanEngine:
                     components=self._error_state.component_names if self._error_state else [],
                 ),
                 components=list(self._state.components.values()),
-                all_goals=list(self._config.goals.keys()),
-                available_goals=(
+                all_profiles=list(self._config.profiles.keys()),
+                available_profiles=(
                     [
                         name
-                        for name, goal in self._config.goals.items()
-                        if self._locked_is_goal_available(goal)
+                        for name, profile in self._config.profiles.items()
+                        if self._locked_is_profile_available(profile)
                     ]
                     if self._is_ready
                     else []
                 ),
             )
 
-    def _locked_is_at_goal(self) -> bool:
+    def _locked_is_at_profile(self) -> bool:
         """
-        Check if the current goal is reached.
+        Check if the current profile is reached.
 
         MUST be called while holding self._state_lock!
         """
-        if not self._is_ready or not self._current_goal:
+        if not self._is_ready or not self._current_profile:
             return False
 
-        # If planner returns nothing, we have reached the goal state
-        return self._planner.get_next_transition(self._state, self._current_goal) is None
+        # If planner returns nothing, we have reached the target profile
+        return self._planner.get_next_transition(self._state, self._current_profile) is None
 
-    def _locked_missing_goal_components(self, target_goal: SystemGoal) -> List[str]:
+    def _locked_missing_profile_components(self, target_profile: SystemProfile) -> List[str]:
         """
-        Check if all components in the target_goal are present in current state.
+        Check if all components in the target_profile are present in current state.
 
         Returns a list of missing components.
         MUST be called while holding self._state_lock!
         """
         missing = []
-        all_component_goals = (
-            target_goal.hardware_goals
-            + target_goal.controller_goals
-            + target_goal.lifecycle_node_goals
+        all_component_targets = (
+            target_profile.hardware_targets
+            + target_profile.controller_targets
+            + target_profile.lifecycle_node_targets
         )
 
-        for component_goal in all_component_goals:
-            if component_goal.name not in self._state.components:
-                missing.append(component_goal.name)
+        for component_target in all_component_targets:
+            if component_target.name not in self._state.components:
+                missing.append(component_target.name)
         return missing
 
-    def _locked_is_goal_available(self, goal: SystemGoal) -> bool:
+    def _locked_is_profile_available(self, profile: SystemProfile) -> bool:
         """
-        Check if a goal is currently achievable given observed component state.
+        Check if a profile is currently achievable given observed component state.
 
         MUST be called while holding self._state_lock!
         """
-        return not self._locked_missing_goal_components(
-            goal
-        ) and not self._locked_check_unsatisfiable_dependencies(goal)
+        return not self._locked_missing_profile_components(
+            profile
+        ) and not self._locked_check_unsatisfiable_dependencies(profile)
 
-    def _locked_check_unsatisfiable_dependencies(self, goal: SystemGoal) -> List[str]:
+    def _locked_check_unsatisfiable_dependencies(self, profile: SystemProfile) -> List[str]:
         """
-        Validate that all controller dependencies in the goal can be satisfied.
+        Validate that all controller dependencies in the profile can be satisfied.
 
         A dependency is satisfiable if:
         - It is already at or above the required state in current observed state, OR
-        - It is included in the goal's infrastructure targets at or above the required state.
+        - It is included in the profile's infrastructure targets at or above the required state.
         Returns a list of error strings. Empty = all satisfiable.
         MUST be called while holding self._state_lock!
         """
         # TODO: refactor naming. Unfortunately, we treat lifecycle nodes same as hardware, so
         # in places, like rule.required_hardware, we are thinking about lifecycle nodes as well.
         # Lets use "infrastructure" for now to mean both of those
-        goal_infrastructure_states = {}
-        for comp in goal.hardware_goals + goal.lifecycle_node_goals:
-            goal_infrastructure_states[comp.name] = comp.lifecycle_state
+        profile_infrastructure_states = {}
+        for comp in profile.hardware_targets + profile.lifecycle_node_targets:
+            profile_infrastructure_states[comp.name] = comp.lifecycle_state
 
         errors = []
-        for ctrl_goal in goal.controller_goals:
-            rule = self._planner.rules.get(ctrl_goal.name)
+        for ctrl_target in profile.controller_targets:
+            rule = self._planner.rules.get(ctrl_target.name)
             if not rule:
                 continue
 
             # if stepping down, we don't care.
-            if ctrl_goal.lifecycle_state == LifecycleState.UNCONFIGURED:
+            if ctrl_target.lifecycle_state == LifecycleState.UNCONFIGURED:
                 continue
 
             for req in rule.required_hardware:
-                if ctrl_goal.lifecycle_state == LifecycleState.ACTIVE:
+                if ctrl_target.lifecycle_state == LifecycleState.ACTIVE:
                     required_state = req.state
                 else:
                     # for configure, we need at least inactive.
                     required_state = LifecycleState.INACTIVE
 
-                dependency_goal_state = goal_infrastructure_states.get(req.name)
+                dependency_profile_state = profile_infrastructure_states.get(req.name)
                 dependency_current = self._state.components.get(req.name)
                 dependency_current_state = (
                     dependency_current.lifecycle_state if dependency_current else None
                 )
 
-                satisfied_by_goal = (
-                    dependency_goal_state is not None and dependency_goal_state >= required_state
+                satisfied_by_profile = (
+                    dependency_profile_state is not None
+                    and dependency_profile_state >= required_state
                 )
                 satisfied_by_current = (
                     dependency_current_state is not None
                     and dependency_current_state >= required_state
                 )
 
-                if not satisfied_by_goal and not satisfied_by_current:
+                if not satisfied_by_profile and not satisfied_by_current:
                     state_str = (
                         dependency_current_state.name if dependency_current_state else "UNKNOWN"
                     )
                     errors.append(
-                        f"'{ctrl_goal.name}' requires '{req.name}' at {required_state.name}, "
-                        f"but it is {state_str} and not targeted in this goal"
+                        f"'{ctrl_target.name}' requires '{req.name}' at {required_state.name}, "
+                        f"but it is {state_str} and not targeted in this profile"
                     )
         return errors
 
@@ -330,4 +331,4 @@ class ForemanEngine:
         if not self._is_ready:
             return
 
-        self._current_goal = None
+        self._current_profile = None

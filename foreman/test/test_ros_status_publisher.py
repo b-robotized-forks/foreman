@@ -19,11 +19,11 @@ def _component(name="joint_trajectory_controller", state=LifecycleState.INACTIVE
     return Component(name=name, component_type=ComponentType.CONTROLLER, lifecycle_state=state)
 
 
-def _snapshot(components=None, all_goals=None, available_goals=None):
+def _snapshot(components=None, all_profiles=None, available_profiles=None):
     return ForemanSnapshot(
-        goal="running",
+        profile="running",
         ready=True,
-        at_goal=False,
+        at_profile=False,
         error=ErrorSnapshot(
             is_error=True,
             category=ForemanErrorCategory.EXECUTION.value,
@@ -31,8 +31,8 @@ def _snapshot(components=None, all_goals=None, available_goals=None):
             components=["joint_trajectory_controller"],
         ),
         components=components if components is not None else [_component()],
-        all_goals=all_goals if all_goals is not None else ["idle", "running"],
-        available_goals=available_goals if available_goals is not None else ["idle"],
+        all_profiles=all_profiles if all_profiles is not None else ["idle", "running"],
+        available_profiles=available_profiles if available_profiles is not None else ["idle"],
     )
 
 
@@ -63,9 +63,9 @@ class TestRosStatusPublisher(unittest.TestCase):
         publisher.publish_status(_snapshot())
 
         published = publisher._publisher.publish.call_args[0][0]
-        self.assertEqual(published.goal, "running")
+        self.assertEqual(published.profile, "running")
         self.assertTrue(published.ready)
-        self.assertFalse(published.at_goal)
+        self.assertFalse(published.at_profile)
         self.assertTrue(published.error.is_error)
         self.assertEqual(published.error.category, ForemanErrorCategory.EXECUTION.value)
         self.assertEqual(published.error.message, "boom")
@@ -76,8 +76,8 @@ class TestRosStatusPublisher(unittest.TestCase):
             published.error.components[0].component_type, ComponentType.CONTROLLER.value
         )
         self.assertEqual(published.error.components[0].lifecycle_state, "INACTIVE")
-        self.assertEqual(list(published.all_goals), ["idle", "running"])
-        self.assertEqual(list(published.available_goals), ["idle"])
+        self.assertEqual(list(published.all_profiles), ["idle", "running"])
+        self.assertEqual(list(published.available_profiles), ["idle"])
 
     def test_status_topic_is_transient_local(self):
         publisher = RosStatusPublisher(self.node)
@@ -105,11 +105,11 @@ class TestRosStatusPublisher(unittest.TestCase):
         publisher.publish_status(_snapshot())
 
         changed = _snapshot()
-        changed.at_goal = True
+        changed.at_profile = True
         publisher.publish_status(changed)
 
         self.assertEqual(publisher._publisher.publish.call_count, 2)
-        self.assertTrue(publisher._publisher.publish.call_args[0][0].at_goal)
+        self.assertTrue(publisher._publisher.publish.call_args[0][0].at_profile)
 
     def test_publish_status_handles_missing_error_components(self):
         publisher = RosStatusPublisher(self.node)
