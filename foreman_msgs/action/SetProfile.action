@@ -1,0 +1,13 @@
+# Set the Foreman profile and wait until the system reaches it.
+# Succeeds once the profile is reached
+
+string profile
+---
+bool success
+# Why the profile ended: reached, refused, preempted, cancelled or aborted.
+string message
+# Engine error state when the profile ended. Empty if lock is busy or engine rejected profile
+ForemanErrorState error
+---
+bool at_profile
+ForemanErrorState error

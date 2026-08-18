@@ -19,6 +19,7 @@ class ForemanNode(Node):
         super().__init__("foreman")
 
         self.foreman_state_lock = threading.Lock()
+        self.set_profile_execution_lock = threading.Lock()
         # for error handling ,so we know what and when failed and who to blame
         self._service_call_active_future = False
         self._active_transition = None
@@ -51,8 +52,15 @@ class ForemanNode(Node):
             node=self, lifecycle_nodes=self.foreman_config.lifecycle_nodes
         )
 
+        self.ros_set_profile_action_server = adapters.RosSetProfileActionServer(
+            node=self,
+            engine=self.foreman_engine,
+            execution_lock=self.set_profile_execution_lock,
+        )
         self.ros_set_profile_server = adapters.RosSetProfileServer(
-            node=self, engine=self.foreman_engine
+            node=self,
+            engine=self.foreman_engine,
+            execution_lock=self.set_profile_execution_lock,
         )
         self.ros_status_publisher = adapters.RosStatusPublisher(node=self)
 
@@ -161,6 +169,9 @@ class ForemanNode(Node):
     def destroy_node(self):
         """Safely stop adapters when shutting down node."""
         self.get_logger().info("Shutting down adapters...")
+
+        self.ros_set_profile_action_server.request_shutdown()
+        self.ros_set_profile_server.request_shutdown()
 
         super().destroy_node()
 
